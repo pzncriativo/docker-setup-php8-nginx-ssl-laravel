@@ -1,0 +1,68 @@
+version: "3.7"
+services:
+    # image project
+    app:
+        container_name: app
+        build:
+            context: .
+            dockerfile: docker-file
+        image: pzn/app-web
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./:/var/www
+        depends_on: 
+            - redis
+        networks: 
+            - app
+    
+    # nginx
+    nginx:
+        container_name: pzn-nginx
+        image: nginx:alpine
+        restart: unless-stopped
+        ports: 
+            - "80:80"
+            - "443:443"
+        volumes: 
+            - ./:/var/www
+            - ./nginx/conf.d/:/etc/nginx/conf.d/
+            - ./nginx/logs:/var/log/nginx
+            - ./certbot/conf:/etc/nginx/ssl
+            - ./certbot/data:/var/www/certbot
+        networks: 
+            - app
+
+    certbot:
+        container_name: pzn-certbot
+        image: certbot/certbot:latest
+        command: certonly --webroot --webroot-path=/var/www/certbot --email email@gmail.com --agree-tos --no-eff-email -d dominio.com
+        volumes:
+            - ./certbot/conf:/etc/letsencrypt
+            - ./certbot/logs:/var/log/letsencrypt
+            - ./certbot/data:/var/www/certbot
+
+    # queue
+    queue:
+        container_name: pzn-queue
+        image: pzn/app-web
+        restart: unless-stopped
+        command: "php artisan queue:work"
+        volumes: 
+            - ./:/var/www
+        depends_on: 
+            - redis
+            - app
+        networks: 
+            - app
+
+    # redis
+    redis:
+        container_name: pzn-redis
+        image: redis:latest
+        networks: 
+            - app
+
+networks: 
+    app:
+        driver: bridge
